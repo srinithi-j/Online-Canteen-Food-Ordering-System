@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css?v=1" />
+  </head>
+  <body>
+    <section id="authScreen" class="auth-shell">
+      <div class="auth-panel auth-panel--intro">
+        <p class="eyebrow">Admin Portal</p>
+        <h1>Manage the menu that appears in the user portal.</h1>
+        <p class="auth-copy">
+          This side is completely separate from the student and teacher flow.
+          Admin can add food items, set price and category, show or hide menu
+          items, and verify collection using PIN.
+        </p>
+        <div class="auth-points">
+          <span>Add menu item</span>
+          <span>Show / hide items</span>
+          <span>Verify order collection</span>
+        </div>
+      </div>
+
+      <div class="auth-panel auth-panel--form">
+        <form id="adminLoginForm" class="auth-form">
+          <h2>Admin Login</h2>
+          <label>
+            Admin username
+            <input id="adminIdentifier" type="text" placeholder="ADMIN_07" required />
+          </label>
+          <label>
+            Password
+            <input id="adminPassword" type="password" placeholder="Enter password" required />
+          </label>
+          <button class="primary-btn" type="submit">Login</button>
+        </form>
+        <p id="authFeedback" class="feedback"></p>
+      </div>
+    </section>
+
+    <section id="appShell" class="app-shell hidden">
+      <aside class="sidebar">
+        <div>
+          <h2 class="sidebar-title">Canteen Control</h2>
+        </div>
+
+        <nav id="sidebarNav" class="sidebar-nav">
+          <button class="nav-btn active" data-view="dashboard" type="button">Dashboard</button>
+          <button class="nav-btn" data-view="menu" type="button">Manage Menu</button>
+          <button class="nav-btn" data-view="verify" type="button">Verify Pickup</button>
+        </nav>
+
+        <div class="sidebar-profile">
+          <div class="avatar-circle" id="sidebarAvatar">A</div>
+          <div>
+            <strong id="sidebarName">Admin</strong>
+            <p class="sidebar-copy">Canteen Office</p>
+          </div>
+        </div>
+
+        <button id="logoutBtn" class="ghost-btn" type="button">Logout</button>
+      </aside>
+
+      <main class="content-shell">
+        <header class="topbar">
+          <div>
+            <h1 id="welcomeHeading">Hello, Admin</h1>
+          </div>
+          <div class="rush-card">
+            <span>Shared menu status</span>
+            <strong id="enabledCount">0 items enabled</strong>
+          </div>
+        </header>
+
+        <section id="dashboardView" class="view-section">
+          <div class="hero-grid">
+            <article class="panel hero-card admin-hero">
+              <ol class="admin-steps">
+                <li>Open <strong>Manage Menu</strong> and add items.</li>
+                <li><strong>Hide</strong> items you don’t want to show now.</li>
+                <li><strong>Remove</strong> wrong or duplicate items.</li>
+                <li>Use <strong>Verify Pickup</strong> to confirm orders with PIN.</li>
+              </ol>
+            </article>
+
+            <article class="panel">
+              <div class="summary-grid">
+                <div>
+                  <small>Enabled items</small>
+                  <strong id="summaryEnabled">0</strong>
+                </div>
+                <div>
+                  <small>Total orders</small>
+                  <strong id="summaryOrders">0</strong>
+                </div>
+                <div>
+                  <small>Pending pickups</small>
+                  <strong id="summaryPending">0</strong>
+                </div>
+                <div>
+                  <small>Collected orders</small>
+                  <strong id="summaryCollected">0</strong>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="menuView" class="view-section hidden">
+          <div class="dashboard-grid">
+            <section class="panel">
+              <div class="section-heading">
+                <h2>Add food item</h2>
+                <p>Admin controls the shared menu seen by all users.</p>
+              </div>
+              <form id="adminMenuForm" class="order-form">
+                <label>
+                  Food item name
+                  <input id="foodName" type="text" placeholder="Masala Dosa" required />
+                </label>
+                <label>
+                  Price
+                  <input id="foodPrice" type="number" min="1" placeholder="55" required />
+                </label>
+                <label>
+                  Category
+                  <select id="foodCategory" required>
+                    <option value="main_course">Main Course</option>
+                    <option value="curries">Curries</option>
+                    <option value="bakes_snacks">Bakes & Snacks</option>
+                    <option value="todays_special">Today's Special</option>
+                    <option value="hot_drinks">Hot Drinks</option>
+                    <option value="juices_milkshakes">Juices & Milkshakes</option>
+                    <option value="ice_creams">Ice Creams</option>
+                    <option value="chat">Chat</option>
+                  </select>
+                </label>
+                <label>
+                  Image URL
+                  <input id="foodImage" type="text" placeholder="https://example.com/dosa.jpg" required />
+                </label>
+                <button class="primary-btn" type="submit">Add Item</button>
+              </form>
+              <p id="menuFeedback" class="feedback"></p>
+            </section>
+
+            <section class="panel">
+              <div class="toolbar">
+                <div class="section-heading" style="margin-bottom: 0;">
+                  <h2>Current menu</h2>
+                </div>
+              </div>
+              <div id="adminMenuList" class="history-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="verifyView" class="view-section hidden">
+          <div class="dashboard-grid">
+            <section class="panel">
+              <div class="section-heading">
+                <h2>Verify pickup</h2>
+                <p>Enter the pickup PIN or paste the QR payload to verify the order.</p>
+              </div>
+              <form id="verifyForm" class="order-form">
+                <label>
+                  Order PIN
+                  <input id="verifyPinInput" type="text" placeholder="Enter pickup PIN" required />
+                </label>
+                <button class="primary-btn" type="submit">Verify Order</button>
+              </form>
+              <div id="verifyResult" class="verification-box hidden"></div>
+            </section>
+
+            <section class="panel">
+              <div class="section-heading">
+                <h2>Pending orders</h2>
+                <p>Orders still waiting for collection.</p>
+              </div>
+              <div id="orderList" class="history-list"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <script src="shared.js?v=1"></script>
+    <script src="admin.js?v=1"></script>
+  </body>
+</html>
+
+        
