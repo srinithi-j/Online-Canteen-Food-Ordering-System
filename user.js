@@ -29,7 +29,6 @@ const placeOrderBtn = document.getElementById("placeOrderBtn");
 const formFeedback = document.getElementById("formFeedback");
 const historyList = document.getElementById("historyList");
 const profileHistoryList = document.getElementById("profileHistoryList");
-const searchInput = document.getElementById("searchInput");
 const filterGroup = document.getElementById("filterGroup");
 const paymentMethods = document.getElementById("paymentMethods");
 const selectedPaymentLabel = document.getElementById("selectedPaymentLabel");
@@ -37,108 +36,20 @@ const roleButtons = document.querySelectorAll(".role-btn");
 
 const upiPaySection = document.getElementById("upiPaySection");
 const upiQrImage = document.getElementById("upiQrImage");
-const upiPayLink = document.getElementById("upiPayLink");
-const payNowBtn = document.getElementById("payNowBtn");
 const cancelOrderBtn = document.getElementById("cancelOrderBtn");
+const iPaidBtn = document.getElementById("iPaidBtn");
 
-const API_BASE = "http://localhost:3001";
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    }
-  });
-
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    const message = data?.error || `Request failed (${response.status})`;
-    throw new Error(message);
-  }
-  return data;
-}
-
-async function startRazorpayPayment(order) {
-  if (!order) return;
-  if (!window.Razorpay) {
-    setFormFeedback("Payment module not loaded. Please refresh and try again.", "error");
-    return;
-  }
-
-  if (order.paymentStatus === "Paid") {
-    setFormFeedback("Payment already completed for this order.", "success");
-    return;
-  }
-
-  try {
-    if (payNowBtn) payNowBtn.disabled = true;
-    setFormFeedback("Opening payment...", "");
-
-    const { keyId } = await fetchJson(`${API_BASE}/api/payments/razorpay/key`);
-    const rpOrder = await fetchJson(`${API_BASE}/api/payments/razorpay/order`, {
-      method: "POST",
-      body: JSON.stringify({
-        amount: Math.round(Number(order.total) * 100),
-        currency: "INR",
-        receipt: order.orderId
-      })
-    });
-
-    const options = {
-      key: keyId,
-      amount: rpOrder.amount,
-      currency: rpOrder.currency,
-      name: "Canteen",
-      description: `Order ${order.orderId}`,
-      order_id: rpOrder.id,
-      prefill: {
-        name: order.userName
-      },
-      handler: async function (response) {
-        try {
-          const verifyResult = await fetchJson(`${API_BASE}/api/payments/razorpay/verify`, {
-            method: "POST",
-            body: JSON.stringify(response)
-          });
-
-          if (!verifyResult.verified) {
-            setFormFeedback("Payment verification failed. Please contact support.", "error");
-            return;
-          }
-
-          const orders = CanteenStore.getOrders();
-          const stored = orders.find((entry) => entry.id === order.id);
-          if (stored) {
-            stored.paymentStatus = "Paid";
-            stored.paymentProvider = "Razorpay";
-            stored.paymentId = response.razorpay_payment_id;
-            stored.razorpayOrderId = response.razorpay_order_id;
-            stored.paymentVerifiedAt = new Date().toLocaleString();
-            CanteenStore.saveOrders(orders);
-          }
-
-          setFormFeedback("Payment verified. You can collect your order.", "success");
-          renderPickupCard(stored || order);
-          renderHistory();
-          renderProfileSummary();
-        } catch (err) {
-          setFormFeedback(err?.message || "Payment verification failed.", "error");
-        }
-      }
-    };
-
-    const razorpayCheckout = new window.Razorpay(options);
-    razorpayCheckout.on("payment.failed", function () {
-      setFormFeedback("Payment failed or cancelled.", "error");
-    });
-    razorpayCheckout.open();
-  } catch (err) {
-    setFormFeedback(err?.message || "Could not start payment.", "error");
-  } finally {
-    if (payNowBtn) payNowBtn.disabled = false;
-  }
+function markUpiPaidReported(orderId) {
+  const orders = CanteenStore.getOrders();
+  const stored = orders.find((entry) => entry.id === orderId);
+  if (!stored) return;
+  stored.paymentReported = true;
+  stored.paymentReportedAt = new Date().toLocaleString();
+  CanteenStore.saveOrders(orders);
+  setFormFeedback("Payment submitted. Waiting for admin verification.", "success");
+  renderPickupCard(stored);
+  renderHistory();
+  renderProfileSummary();
 }
 
 function syncFromStorage(event) {
@@ -245,14 +156,56 @@ function ensureUpiSettings() {
 }
 
 function getCategoryLabel(category) {
+  const settings = CanteenStore.getSettings();
+  const categories = Array.isArray(settings.categories) ? settings.categories : [];
+  const found = categories.find((entry) => entry && entry.value === category);
+  if (found && found.label) return found.label;
  if (category === "main_course") return "Main Course";
   if (category === "curries") return "Curries";
   if (category === "bakes_snacks") return "Bakes & Snacks";
+  if (category === "egg_items") return "Egg Items";
   if (category === "todays_special") return "Today's Special";
   if (category === "hot_drinks") return "Hot Drinks";
   if (category === "juices_milkshakes") return "Juices & Milkshakes";
   if (category === "ice_creams") return "Ice Creams";
   return "Chat";
+}
+
+function renderCategoryFilters() {
+  const container = document.getElementById("filterGroup");
+  if (!container) return;
+
+  const settings = CanteenStore.getSettings();
+  const categories = Array.isArray(settings.categories) ? settings.categories : [];
+  const fallbackCategories = [
+    { value: "main_course", label: "Main Course", enabled: true },
+    { value: "curries", label: "Curries", enabled: true },
+    { value: "bakes_snacks", label: "Bakes & Snacks", enabled: true },
+    { value: "egg_items", label: "Egg Items", enabled: true },
+    { value: "todays_special", label: "Today's Special", enabled: true },
+    { value: "hot_drinks", label: "Hot Drinks", enabled: true },
+    { value: "juices_milkshakes", label: "Juices & Milkshakes", enabled: true },
+    { value: "ice_creams", label: "Ice Creams", enabled: true },
+    { value: "chat", label: "Chat", enabled: true }
+  ];
+  const list = (categories.length ? categories : fallbackCategories).filter((entry) => entry && entry.enabled !== false);
+  container.innerHTML = [
+    `<button class="filter-btn" data-filter="all" type="button">All</button>`,
+    ...list.map(
+      (entry) =>
+        `<button class="filter-btn" data-filter="${entry.value}" type="button">${entry.label}</button>`
+    )
+  ].join("");
+
+  const storedFilter = userState.filter || "all";
+  const safeFilter = storedFilter === "all" || list.some((entry) => entry.value === storedFilter)
+    ? storedFilter
+    : "all";
+  userState.filter = safeFilter;
+
+  container.querySelectorAll(".filter-btn").forEach((button) => {
+    button.classList.toggle("active", button.dataset.filter === userState.filter);
+  });
 }
 
 function setAuthFeedback(message, type = "") {
@@ -346,6 +299,19 @@ function updateAuthLabels() {
   document.getElementById("loginIdentifier").placeholder = isTeacher ? "TEACH101" : "22CS1042";
   document.getElementById("signupIdentifier").placeholder = isTeacher ? "TEACH101" : "22CS1042";
   document.getElementById("signupDepartment").placeholder = isTeacher ? "Mathematics" : "CSE - 3rd year";
+
+  const introHeadline = document.getElementById("authIntroHeadline");
+  const introCopy = document.getElementById("authIntroCopy");
+  if (introHeadline) {
+    introHeadline.textContent = isTeacher
+      ? "Teacher Can Order Quickly From Today’s Canteen Menu."
+      : "Student Can Order Quickly From Today’s Canteen Menu.";
+  }
+  if (introCopy) {
+    introCopy.textContent = isTeacher
+      ? "Use your Teacher ID to log in, place orders in seconds, and collect using your pickup PIN or QR."
+      : "Use your register number to log in, place orders in seconds, and collect using your pickup PIN or QR.";
+  }
 }
 
 function switchAuthMode(mode) {
@@ -381,8 +347,7 @@ function fillOrderForm() {
 function renderMenu() {
   const visibleItems = getMenu().filter((item) => {
     const filterMatch = userState.filter === "all" || item.category === userState.filter;
-    const searchMatch = item.name.toLowerCase().includes(userState.search.toLowerCase());
-    return filterMatch && searchMatch;
+    return filterMatch;
   });
 
   if (visibleItems.length === 0) {
@@ -544,20 +509,17 @@ function renderPickupCard(order) {
       })
     : "";
 
-  if (upiPaySection && upiQrImage && upiPayLink) {
-    upiPaySection.classList.toggle("hidden", !isUpiPayment);
-    if (isUpiPayment) {
-      upiPayLink.href = upiUri;
-      upiPayLink.rel = "noreferrer";
-      upiPayLink.target = "_blank";
+  if (upiPaySection && upiQrImage) {
+    const showUpiQr =
+      isUpiPayment &&
+      order.status !== "Collected" &&
+      order.status !== "Cancelled" &&
+      !order.paymentReported;
+    upiPaySection.classList.toggle("hidden", !showUpiQr);
+    if (showUpiQr) {
       upiQrImage.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
         upiUri
       )}`;
-
-      if (payNowBtn) {
-        payNowBtn.classList.toggle("hidden", order.paymentStatus === "Paid");
-        payNowBtn.onclick = () => startRazorpayPayment(order);
-      }
     }
   }
 
@@ -568,7 +530,23 @@ function renderPickupCard(order) {
   const statusLine = document.getElementById("pickupStatusLine");
   if (statusLine) {
     statusLine.textContent =
-      order.status === "Collected" ? "Order verified — collect your order" : "Waiting for verification";
+      order.status === "Collected"
+        ? "Order verified — collect your order"
+        : order.paymentMethod === "UPI" && order.paymentVerifiedByAdmin
+          ? "Payment verified — collect on time"
+          : order.paymentMethod === "UPI" && order.paymentReported
+            ? "Payment submitted — waiting for admin"
+            : "Waiting for verification";
+  }
+
+  if (iPaidBtn) {
+    const showPaidButton =
+      order.paymentMethod === "UPI" &&
+      order.status !== "Collected" &&
+      order.status !== "Cancelled" &&
+      !order.paymentReported;
+    iPaidBtn.classList.toggle("hidden", !showPaidButton);
+    iPaidBtn.onclick = () => markUpiPaidReported(order.id);
   }
 
   const pickupQrData = JSON.stringify({
@@ -831,11 +809,6 @@ function attachEvents() {
     renderMenu();
   });
 
-  searchInput.addEventListener("input", (event) => {
-    userState.search = event.target.value;
-    renderMenu();
-  });
-
   paymentMethods.addEventListener("click", (event) => {
     if (!event.target.dataset.payment) return;
     userState.paymentMethod = event.target.dataset.payment;
@@ -850,6 +823,14 @@ function init() {
   CanteenStore.bootstrap();
   attachEvents();
   updateAuthLabels();
+  renderCategoryFilters();
+
+  if (!["UPI", "Cash"].includes(userState.paymentMethod)) {
+    userState.paymentMethod = "UPI";
+    document.querySelectorAll(".payment-btn").forEach((button) => {
+      button.classList.toggle("active", button.dataset.payment === userState.paymentMethod);
+    });
+  }
 
   if (userState.currentUser && userState.currentUser.role !== "admin") {
     renderShell();
