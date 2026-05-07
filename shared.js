@@ -38,7 +38,18 @@ const CanteenStore = (() => {
   const defaultSettings = {
     upiVpa: "",
     upiPayeeName: "",
-    upiAid: ""
+    upiAid: "",
+    categories: [
+      { value: "main_course", label: "Main Course", enabled: true },
+      { value: "curries", label: "Curries", enabled: true },
+      { value: "bakes_snacks", label: "Bakes & Snacks", enabled: true },
+      { value: "egg_items", label: "Egg Items", enabled: true },
+      { value: "todays_special", label: "Today's Special", enabled: true },
+      { value: "hot_drinks", label: "Hot Drinks", enabled: true },
+      { value: "juices_milkshakes", label: "Juices & Milkshakes", enabled: true },
+      { value: "ice_creams", label: "Ice Creams", enabled: true },
+      { value: "chat", label: "Chat", enabled: true }
+    ]
   };
 
   function read(key, fallback) {
@@ -74,6 +85,24 @@ const CanteenStore = (() => {
     const settings = read(keys.settings, null);
     if (!settings || typeof settings !== "object") {
       write(keys.settings, defaultSettings);
+    } else if (!Array.isArray(settings.categories) || settings.categories.length === 0) {
+      write(keys.settings, {
+        ...defaultSettings,
+        ...settings,
+        categories: defaultSettings.categories
+      });
+    } else {
+      const migratedCategories = settings.categories
+        .filter((entry) => entry && typeof entry === "object")
+        .map((entry) => ({
+          ...entry,
+          enabled: entry.enabled !== false
+        }));
+      write(keys.settings, {
+        ...defaultSettings,
+        ...settings,
+        categories: migratedCategories
+      });
     }
 
     const adminSession = read(keys.currentUserAdmin, null);
