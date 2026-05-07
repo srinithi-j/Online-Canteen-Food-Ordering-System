@@ -10,13 +10,13 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=1" />
+    <link rel="stylesheet" href="styles.css?v=10" />
   </head>
   <body>
     <section id="authScreen" class="auth-shell">
       <div class="auth-panel auth-panel--intro">
         <p class="eyebrow">Admin Portal</p>
-        <h1>Manage the menu that appears in the user portal.</h1>
+        <h1>Admin Manages The Menu That Appears In The User Portal.</h1>
         <p class="auth-copy">
           This side is completely separate from the student and teacher flow.
           Admin can add food items, set price and category, show or hide menu
@@ -116,7 +116,7 @@
 
         <section id="menuView" class="view-section hidden">
           <div class="dashboard-grid">
-            <section class="panel">
+            <section class="panel" id="adminFormPanel">
               <div class="section-heading">
                 <h2>Add food item</h2>
                 <p>Admin controls the shared menu seen by all users.</p>
@@ -136,6 +136,7 @@
                     <option value="main_course">Main Course</option>
                     <option value="curries">Curries</option>
                     <option value="bakes_snacks">Bakes & Snacks</option>
+                    <option value="egg_items">Egg Items</option>
                     <option value="todays_special">Today's Special</option>
                     <option value="hot_drinks">Hot Drinks</option>
                     <option value="juices_milkshakes">Juices & Milkshakes</option>
@@ -144,12 +145,25 @@
                   </select>
                 </label>
                 <label>
+                  Add new category
+                  <div class="toolbar" style="grid-template-columns: 1fr auto; margin-bottom: 0;">
+                    <input id="newCategoryName" type="text" placeholder="Egg Items" />
+                    <button id="addCategoryBtn" class="ghost-btn" type="button">Add</button>
+                  </div>
+                </label>
+                <label>
                   Image URL
                   <input id="foodImage" type="text" placeholder="https://example.com/dosa.jpg" required />
                 </label>
                 <button class="primary-btn" type="submit">Add Item</button>
               </form>
               <p id="menuFeedback" class="feedback"></p>
+
+              <div class="section-heading" style="margin-top: 18px;">
+                <h2>Manage categories</h2>
+                <p>Show or hide categories in the user portal filter.</p>
+              </div>
+              <div id="categoryList" class="history-list"></div>
             </section>
 
             <section class="panel">
@@ -166,18 +180,33 @@
         <section id="verifyView" class="view-section hidden">
           <div class="dashboard-grid">
             <section class="panel">
-              <div class="section-heading">
-                <h2>Verify pickup</h2>
-                <p>Enter the pickup PIN or paste the QR payload to verify the order.</p>
+              <div id="verifyPaymentSection">
+                <div class="section-heading">
+                  <h2>Verify payment</h2>
+                  <p>UPI only: enter the CFOS order ID after checking the payment. (Cash is verified during pickup using PIN.)</p>
+                </div>
+                <form id="verifyPaymentForm" class="order-form">
+                  <label>
+                    CFOS Order ID
+                    <input id="verifyPaymentInput" type="text" placeholder="CFOS-1234" required />
+                  </label>
+                  <button class="primary-btn" type="submit">Verify Payment</button>
+                </form>
+                <div id="verifyPaymentResult" class="verification-box hidden"></div>
               </div>
-              <form id="verifyForm" class="order-form">
+
+              <div class="section-heading" style="margin-top: 18px;">
+                <h2>Verify pickup</h2>
+                <p>Enter the pickup PIN when the user comes to collect the order.</p>
+              </div>
+              <form id="verifyPickupForm" class="order-form">
                 <label>
-                  Order PIN
-                  <input id="verifyPinInput" type="text" placeholder="Enter pickup PIN" required />
+                  Pickup PIN
+                  <input id="verifyPickupInput" type="text" placeholder="Enter pickup PIN" required />
                 </label>
-                <button class="primary-btn" type="submit">Verify Order</button>
+                <button class="primary-btn" type="submit">Verify Pickup</button>
               </form>
-              <div id="verifyResult" class="verification-box hidden"></div>
+              <div id="verifyPickupResult" class="verification-box hidden"></div>
             </section>
 
             <section class="panel">
@@ -192,8 +221,8 @@
       </main>
     </section>
 
-    <script src="shared.js?v=1"></script>
-    <script src="admin.js?v=1"></script>
+    <script src="shared.js?v=10"></script>
+    <script src="admin.js?v=11"></script>
   </body>
 </html>
 
