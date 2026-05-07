@@ -11,10 +11,31 @@ const adminLoginForm = document.getElementById("adminLoginForm");
 const logoutBtn = document.getElementById("logoutBtn");
 const adminMenuForm = document.getElementById("adminMenuForm");
 const adminMenuList = document.getElementById("adminMenuList");
+const categoryList = document.getElementById("categoryList");
 const menuFeedback = document.getElementById("menuFeedback");
-const verifyForm = document.getElementById("verifyForm");
-const verifyResult = document.getElementById("verifyResult");
 const orderList = document.getElementById("orderList");
+const verifyPaymentForm = document.getElementById("verifyPaymentForm");
+const verifyPaymentResult = document.getElementById("verifyPaymentResult");
+const verifyPickupForm = document.getElementById("verifyPickupForm");
+const verifyPickupResult = document.getElementById("verifyPickupResult");
+const verifyPaymentSection = document.getElementById("verifyPaymentSection");
+
+let refreshIntervalId = null;
+
+function startAutoRefresh() {
+  if (refreshIntervalId) return;
+  refreshIntervalId = window.setInterval(() => {
+    if (!adminState.currentUser || adminState.currentUser.role !== "admin") return;
+    renderTop();
+    renderOrderList();
+  }, 1000);
+}
+
+function stopAutoRefresh() {
+  if (!refreshIntervalId) return;
+  window.clearInterval(refreshIntervalId);
+  refreshIntervalId = null;
+}
 
 function syncFromStorage(event) {
   if (!event.key) return;
@@ -38,14 +59,95 @@ function formatCurrency(amount) {
 }
 
 function getCategoryLabel(category) {
+  const settings = CanteenStore.getSettings();
+  const categories = Array.isArray(settings.categories) ? settings.categories : [];
+  const found = categories.find((entry) => entry && entry.value === category);
+  if (found && found.label) return found.label;
   if (category === "main_course") return "Main Course";
   if (category === "curries") return "Curries";
   if (category === "bakes_snacks") return "Bakes & Snacks";
+  if (category === "egg_items") return "Egg Items";
   if (category === "todays_special") return "Today's Special";
   if (category === "hot_drinks") return "Hot Drinks";
   if (category === "juices_milkshakes") return "Juices & Milkshakes";
   if (category === "ice_creams") return "Ice Creams";
   return "Chat";
+}
+
+function slugifyCategoryLabel(label) {
+  return String(label)
+    .trim()
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function getCategories() {
+  const settings = CanteenStore.getSettings();
+  return Array.isArray(settings.categories) ? settings.categories : [];
+}
+
+function saveCategories(categories) {
+  CanteenStore.saveSettings({
+    ...CanteenStore.getSettings(),
+    categories
+  });
+}
+
+function renderCategoryDropdown(selectedValue = "") {
+  const dropdown = document.getElementById("foodCategory");
+  if (!dropdown) return;
+
+  const categories = getCategories().filter((entry) => entry && entry.enabled !== false);
+  dropdown.innerHTML = categories
+    .map((entry) => `<option value="${entry.value}">${entry.label}</option>`)
+    .join("");
+
+  if (selectedValue && categories.some((entry) => entry.value === selectedValue)) {
+    dropdown.value = selectedValue;
+  }
+}
+
+function renderCategoryList() {
+  if (!categoryList) return;
+  const categories = getCategories();
+  if (categories.length === 0) {
+    categoryList.innerHTML = `<div class="empty-state">No categories available.</div>`;
+    return;
+  }
+
+  categoryList.innerHTML = categories
+    .map(
+      (entry) => `
+        <article class="admin-item">
+          <div class="admin-item__top">
+            <div>
+              <h4>${entry.label}</h4>
+              <div class="history-meta">${entry.value}</div>
+            </div>
+            <strong>${entry.enabled === false ? "Hidden" : "Visible"}</strong>
+          </div>
+          <div class="admin-item__actions">
+            <button class="status-btn ${entry.enabled === false ? "disabled" : "enabled"}" type="button" data-action="toggle-category" data-value="${entry.value}">
+              ${entry.enabled === false ? "Show" : "Hide"}
+            </button>
+          </div>
+        </article>
+      `
+    )
+    .join("");
+}
+
+function toggleCategory(categoryValue) {
+  const categories = getCategories();
+  const category = categories.find((entry) => entry && entry.value === categoryValue);
+  if (!category) return;
+  category.enabled = category.enabled === false;
+  saveCategories(categories);
+  renderCategoryList();
+  renderCategoryDropdown();
+  setMenuFeedback("Category updated.", "success");
 }
 
 function setAuthFeedback(message, type = "") {
@@ -58,6 +160,10 @@ function setMenuFeedback(message, type = "") {
   menuFeedback.className = `feedback ${type}`.trim();
 }
 
+function setVerifyPaymentFeedback(message, type = "") {
+  verifyPaymentResult.textContent = message;
+  verifyPaymentResult.className = `feedback ${type}`.trim();
+}
 
 function showAuth() {
   authScreen.classList.remove("hidden");
@@ -150,9 +256,19 @@ function editMenuItem(itemId) {
 }
 
 function renderOrderList() {
-  const pendingOrders = CanteenStore.getOrders().filter(
-    (order) => order.status !== "Collected" && order.status !== "Cancelled"
-  );
+  const pendingOrders = CanteenStore.getOrders().filter((order) => {
+    if (order.status === "Collected" || order.status === "Cancelled") return false;
+    if (order.paymentMethod === "UPI" && !order.paymentReported) return false;
+    return true;
+  });
+
+  if (verifyPaymentSection) {
+    const needsUpiPaymentVerification = pendingOrders.some(
+      (order) => order.paymentMethod === "UPI" && !order.paymentVerifiedByAdmin
+    );
+    verifyPaymentSection.classList.toggle("hidden", !needsUpiPaymentVerification);
+  }
+
   if (pendingOrders.length === 0) {
     orderList.innerHTML = `<div class="empty-state">No pending pickup orders.</div>`;
     return;
@@ -167,13 +283,17 @@ function renderOrderList() {
           <div class="history-head">
             <div>
               <h4>${order.userName}</h4>
-              <div class="history-meta">${order.userRole} • ${order.orderId}</div>
+              <div class="history-meta">${order.userRole}${
+                order.paymentMethod === "UPI" ? ` • ${order.orderId}` : ""
+              }</div>
             </div>
             <div class="history-total">PIN ${order.pin}</div>
           </div>
           <div class="history-meta">${order.items.map((item) => `${item.name} x${item.quantity}`).join(", ")}</div>
           <div class="history-meta">${order.pickupSlot} • ${order.paymentMethod}${
-            order.paymentMethod === "UPI" ? ` • ${order.paymentStatus === "Paid" ? "Paid" : "Unpaid"}` : ""
+            order.paymentMethod === "UPI"
+              ? ` • ${order.paymentVerifiedByAdmin ? "Payment verified" : "Payment pending"}`
+              : ""
           }</div>
         </article>
       `
@@ -214,6 +334,7 @@ function handleLogin(event) {
 function handleLogout() {
   adminState.currentUser = null;
   CanteenStore.clearCurrentUser("admin");
+  stopAutoRefresh();
   showAuth();
   setAuthFeedback("");
 }
@@ -285,38 +406,94 @@ function verifyOrderByPin(pin) {
   const orders = CanteenStore.getOrders();
   const order = orders.find((entry) => entry.pin === cleanedPin);
 
-  verifyResult.classList.remove("hidden");
+  verifyPickupResult.classList.remove("hidden");
 
   if (!order) {
-    verifyResult.className = "verification-box error";
-    verifyResult.innerHTML = `<strong>No order found</strong><div>Please check the PIN and try again.</div>`;
+    verifyPickupResult.className = "verification-box error";
+    verifyPickupResult.innerHTML = `<strong>No order found</strong><div>Please check the pickup PIN and try again.</div>`;
     return;
   }
 
   if (order.status === "Cancelled") {
-    verifyResult.className = "verification-box error";
-    verifyResult.innerHTML = `<strong>Order cancelled</strong><div>This order was cancelled and cannot be verified.</div>`;
-    return;
-  }
-
-  if (order.paymentMethod === "UPI" && order.paymentStatus !== "Paid") {
-    verifyResult.className = "verification-box error";
-    verifyResult.innerHTML = `<strong>Payment not confirmed</strong><div>This UPI order is not marked as paid yet.</div>`;
+    verifyPickupResult.className = "verification-box error";
+    verifyPickupResult.innerHTML = `<strong>Order cancelled</strong><div>This order was cancelled and cannot be verified.</div>`;
     return;
   }
 
   if (order.status === "Collected") {
-    verifyResult.className = "verification-box error";
-    verifyResult.innerHTML = `<strong>Already verified</strong><div>This order was already verified earlier.</div>`;
+    verifyPickupResult.className = "verification-box error";
+    verifyPickupResult.innerHTML = `<strong>Already verified</strong><div>This order was already verified earlier.</div>`;
+    return;
+  }
+
+  if (order.paymentMethod === "UPI" && !order.paymentVerifiedByAdmin) {
+    verifyPickupResult.className = "verification-box error";
+    verifyPickupResult.innerHTML = `<strong>Payment not verified</strong><div>Please verify payment first.</div>`;
     return;
   }
 
   order.status = "Collected";
   CanteenStore.saveOrders(orders);
-  verifyResult.className = "verification-box";
-  verifyResult.innerHTML = `
+  verifyPickupResult.className = "verification-box";
+  verifyPickupResult.innerHTML = `
     <strong>${order.userName}</strong>
-    <div>Order verified.</div>
+    <div>Pickup verified.</div>
+  `;
+  renderTop();
+  renderOrderList();
+}
+
+function verifyPaymentByOrderId(orderId) {
+  const orders = CanteenStore.getOrders();
+  const cleaned = String(orderId || "").trim();
+  const lowered = cleaned.toLowerCase();
+  const digitsOnly = cleaned.replace(/\D/g, "");
+  const order = orders.find((entry) => {
+    const existing = String(entry.orderId || "").toLowerCase();
+    if (!existing) return false;
+    if (existing === lowered) return true;
+    if (digitsOnly && existing.endsWith(digitsOnly)) return true;
+    return false;
+  });
+
+  verifyPaymentResult.classList.remove("hidden");
+
+  if (!order) {
+    verifyPaymentResult.className = "verification-box error";
+    verifyPaymentResult.innerHTML = `<strong>No order found</strong><div>Enter the full CFOS ID (like CFOS-1234) or just the last 4 digits.</div>`;
+    return;
+  }
+
+  if (order.status === "Cancelled") {
+    verifyPaymentResult.className = "verification-box error";
+    verifyPaymentResult.innerHTML = `<strong>Order cancelled</strong><div>This order was cancelled and cannot be verified.</div>`;
+    return;
+  }
+
+  if (order.paymentMethod !== "UPI") {
+    verifyPaymentResult.className = "verification-box error";
+    verifyPaymentResult.innerHTML = `<strong>Not required</strong><div>Cash orders are verified only during pickup using the PIN.</div>`;
+    return;
+  }
+
+  if (order.paymentMethod === "UPI" && !order.paymentReported) {
+    verifyPaymentResult.className = "verification-box error";
+    verifyPaymentResult.innerHTML = `<strong>Payment not submitted</strong><div>Ask the user to tap “I have paid” first.</div>`;
+    return;
+  }
+
+  if (order.paymentVerifiedByAdmin) {
+    verifyPaymentResult.className = "verification-box error";
+    verifyPaymentResult.innerHTML = `<strong>Already verified</strong><div>This order was already verified earlier.</div>`;
+    return;
+  }
+
+  order.paymentVerifiedByAdmin = true;
+  CanteenStore.saveOrders(orders);
+  verifyPaymentResult.className = "verification-box";
+  verifyPaymentResult.innerHTML = `
+    <strong>${order.userName}</strong>
+    <div>Payment verified. User can collect on time.</div>
   `;
   renderTop();
   renderOrderList();
@@ -324,7 +501,7 @@ function verifyOrderByPin(pin) {
 
 function verifyPickup(event) {
   event.preventDefault();
-  const pin = document.getElementById("verifyPinInput").value.trim();
+  const pin = document.getElementById("verifyPickupInput").value.trim();
   verifyOrderByPin(pin);
 }
 
@@ -342,13 +519,60 @@ function renderShell() {
   renderMenuList();
   renderOrderList();
   switchView(adminState.currentView);
+  startAutoRefresh();
 }
 
 function attachEvents() {
   adminLoginForm.addEventListener("submit", handleLogin);
   logoutBtn.addEventListener("click", handleLogout);
-  adminMenuForm.addEventListener("submit", handleMenuSubmit);
-  verifyForm.addEventListener("submit", verifyPickup);
+  adminMenuForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    addMenuItem();
+  });
+
+  const addCategoryBtn = document.getElementById("addCategoryBtn");
+  if (addCategoryBtn) {
+    addCategoryBtn.addEventListener("click", () => {
+      const input = document.getElementById("newCategoryName");
+      const rawLabel = input ? input.value.trim() : "";
+      if (!rawLabel) {
+        setMenuFeedback("Enter a category name.", "error");
+        return;
+      }
+
+      const value = slugifyCategoryLabel(rawLabel);
+      if (!value) {
+        setMenuFeedback("Enter a valid category name.", "error");
+        return;
+      }
+
+      const categories = getCategories();
+      const exists = categories.some(
+        (entry) => entry && (entry.value === value || String(entry.label).toLowerCase() === rawLabel.toLowerCase())
+      );
+      if (exists) {
+        setMenuFeedback("Category already exists.", "error");
+        return;
+      }
+
+      const updated = [...categories, { value, label: rawLabel, enabled: true }];
+      saveCategories(updated);
+      renderCategoryDropdown(value);
+      renderCategoryList();
+      if (input) input.value = "";
+      setMenuFeedback("Category added.", "success");
+    });
+  }
+  if (verifyPaymentForm) {
+    verifyPaymentForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const orderId = document.getElementById("verifyPaymentInput").value.trim();
+      verifyPaymentByOrderId(orderId);
+    });
+  }
+  if (verifyPickupForm) {
+    verifyPickupForm.addEventListener("submit", verifyPickup);
+  }
   window.addEventListener("storage", syncFromStorage);
 
   document.querySelectorAll(".nav-btn").forEach((button) => {
@@ -367,6 +591,8 @@ function attachEvents() {
 
 function init() {
   CanteenStore.bootstrap();
+  renderCategoryDropdown();
+  renderCategoryList();
   attachEvents();
 
   if (adminState.currentUser && adminState.currentUser.role === "admin") {
