@@ -156,6 +156,7 @@ a {
   margin: 0;
   max-width: 12ch;
   font-family: "Space Grotesk", sans-serif;
+  font-weight: 400;
   font-size: clamp(2.7rem, 6vw, 5.1rem);
   line-height: 0.96;
 }
@@ -331,6 +332,16 @@ textarea:focus {
   padding: 24px;
 }
 
+.app-shell {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.content-shell {
+  height: 100%;
+  overflow: hidden;
+}
+
 .sidebar {
   border-radius: 28px;
   padding: 26px;
@@ -392,7 +403,7 @@ small,
 
 .content-shell {
   display: grid;
-  gap: 22px;
+  gap: 14px;
 }
 
 .topbar {
@@ -400,7 +411,7 @@ small,
   justify-content: space-between;
   gap: 20px;
   align-items: center;
-  padding: 6px 4px;
+  padding: 0 4px;
 }
 
 .topbar h1 {
@@ -550,8 +561,34 @@ small,
   margin-bottom: 18px;
 }
 
+#menuView .toolbar {
+  grid-template-columns: 1fr;
+}
+
 .menu-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: max-content;
+  align-content: start;
+}
+
+#adminMenuList {
+  height: calc(100vh - 260px);
+  overflow: auto;
+  padding-right: 6px;
+  padding-bottom: 140px;
+}
+
+#adminFormPanel {
+  height: calc(100vh - 260px);
+  overflow: auto;
+  padding-right: 6px;
+}
+
+#menuGrid {
+  height: calc(100vh - 260px);
+  overflow: auto;
+  padding-right: 6px;
+  padding-bottom: 140px;
 }
 
 .menu-card,
